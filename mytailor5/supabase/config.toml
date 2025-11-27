@@ -1,0 +1,28 @@
+# Supabase 项目配置文件
+
+[project]
+# 项目 ID（在 Supabase Dashboard 中获取）
+# project_id = "your-project-id"
+
+[auth]
+# 认证配置
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["https://your-project.supabase.co"]
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+[storage]
+# Storage 配置
+file_size_limit = "52428800"  # 50MB
+file_upload_limit = "10"
+
+[storage.buckets.orders]
+# 订单图片存储桶
+public = false
+file_size_limit = "52428800"  # 50MB
+allowed_mime_types = ["image/jpeg", "image/png", "image/webp"]
+

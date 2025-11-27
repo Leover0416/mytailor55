@@ -1,0 +1,7 @@
+{
+  "name": "小刘裁缝铺 (Little Liu's Tailor Shop)",
+  "description": "专为小刘裁缝铺设计的订单管理系统。拍照记录衣物款式、备注及价格，支持本地存储与备份，不仅防忘单，还能统计收支。",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
