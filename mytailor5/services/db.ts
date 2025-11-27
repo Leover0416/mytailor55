@@ -98,6 +98,11 @@ const uploadImages = async (images: string[], orderId: string): Promise<string[]
  * 获取可访问的图片 URL（支持 Private 存储桶）
  */
 export const getImageUrl = async (imagePath: string): Promise<string> => {
+  if (!imagePath || typeof imagePath !== 'string') {
+    console.warn('无效的图片路径:', imagePath);
+    return '';
+  }
+  
   try {
     // 如果是 base64，直接返回
     if (imagePath.startsWith('data:image')) {
@@ -111,26 +116,50 @@ export const getImageUrl = async (imagePath: string): Promise<string> => {
     
     // 如果是 Storage 路径（格式：orders/userId/orderId/index.jpg）
     if (imagePath.startsWith('orders/')) {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('用户未登录');
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        console.error('用户未登录或认证失败:', authError);
+        // 返回原路径，让调用方处理
+        return imagePath;
+      }
       
       // 提取文件路径（去掉 'orders/' 前缀）
-      const filePath = imagePath.replace('orders/', '');
+      const filePath = imagePath.replace(/^orders\//, '');
+      
+      if (!filePath) {
+        console.error('无效的文件路径:', imagePath);
+        return imagePath;
+      }
       
       // 生成签名 URL（有效期 1 小时）
       const { data, error } = await supabase.storage
         .from('orders')
         .createSignedUrl(filePath, 3600); // 1小时有效期
       
-      if (error) throw error;
+      if (error) {
+        console.error('生成签名 URL 失败:', error);
+        console.error('文件路径:', filePath);
+        console.error('错误详情:', JSON.stringify(error, null, 2));
+        // 返回原路径，让调用方处理
+        return imagePath;
+      }
+      
+      if (!data || !data.signedUrl) {
+        console.error('签名 URL 为空，文件路径:', filePath);
+        return imagePath;
+      }
+      
       return data.signedUrl;
     }
     
-    // 默认返回原路径
+    // 默认返回原路径（可能是旧格式或其他格式）
+    console.warn('未知的图片路径格式:', imagePath);
     return imagePath;
   } catch (error) {
     console.error('获取图片 URL 失败:', error);
-    return imagePath; // 失败时返回原路径
+    console.error('图片路径:', imagePath);
+    // 失败时返回原路径
+    return imagePath;
   }
 };
 
@@ -188,29 +217,33 @@ export const saveOrder = async (order: Order): Promise<void> => {
     // 如果没有 ID 或 ID 不是 UUID 格式，生成新的 UUID
     let orderId = order.id;
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    if (!orderId || !uuidRegex.test(orderId)) {
+    const isNewOrder = !orderId || !uuidRegex.test(orderId);
+    
+    if (isNewOrder) {
       orderId = generateUUID();
     }
 
-    // 上传图片到 Storage
+    // 上传图片到 Storage（使用确定的 orderId）
     const uploadedImages = await uploadImages(order.images, orderId);
 
     const dbData: any = {
       ...orderToDb({ ...order, images: uploadedImages }),
       user_id: user.id,
+      id: orderId, // 始终使用确定的 ID
     };
 
-    // 如果是新订单（临时 ID），不传 id，让数据库自动生成
-    // 如果是更新现有订单，传 id
-    if (uuidRegex.test(order.id)) {
-      dbData.id = order.id;
-    }
-
-    const { error } = await supabase
+    const { data: savedData, error } = await supabase
       .from('orders')
-      .upsert(dbData, { onConflict: 'id' });
+      .upsert(dbData, { onConflict: 'id' })
+      .select()
+      .single();
 
     if (error) throw error;
+    
+    // 更新 order.id 为保存后的 ID（如果是新订单）
+    if (savedData) {
+      order.id = savedData.id;
+    }
   } catch (error) {
     console.error('保存订单失败:', error);
     throw new Error('保存订单失败: ' + (error as Error).message);
@@ -238,11 +271,28 @@ export const getOrders = async (): Promise<Order[]> => {
 
     const orders = (data || []).map(dbToOrder);
     
-    // 兼容旧数据：处理 imageBase64
-    return orders.map(o => ({
-      ...o,
-      images: o.images || (o as any).imageBase64 ? [(o as any).imageBase64] : []
-    }));
+    // 兼容旧数据：处理 imageBase64 和不同格式的图片路径
+    return orders.map(o => {
+      let images = o.images || [];
+      
+      // 兼容旧格式：imageBase64
+      if (images.length === 0 && (o as any).imageBase64) {
+        images = [(o as any).imageBase64];
+      }
+      
+      // 确保 images 是数组
+      if (!Array.isArray(images)) {
+        images = [];
+      }
+      
+      // 过滤空值
+      images = images.filter(img => img && img.trim() !== '');
+      
+      return {
+        ...o,
+        images
+      };
+    });
   } catch (error) {
     console.error('获取订单失败:', error);
     throw new Error('获取订单失败: ' + (error as Error).message);
@@ -312,15 +362,64 @@ const loadImage = async (src: string): Promise<HTMLImageElement> => {
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.crossOrigin = "anonymous";
+        
+        // 设置超时
+        const timeout = setTimeout(() => {
+            reject(new Error('图片加载超时: ' + src));
+        }, 30000); // 30秒超时
+        
+        img.onload = () => {
+            clearTimeout(timeout);
+            resolve(img);
+        };
+        
+        img.onerror = (e) => {
+            clearTimeout(timeout);
+            console.error('图片加载失败:', imageUrl, e);
+            reject(new Error('图片加载失败: ' + src));
+        };
+        
         img.src = imageUrl;
-        img.onload = () => resolve(img);
-        img.onerror = (e) => reject(e);
     });
 };
 
 export const generateWatermarkedImage = async (order: Order): Promise<string> => {
     try {
-        const images = await Promise.all(order.images.map(src => loadImage(src)));
+        console.log('开始生成水印图片，订单:', order.id);
+        console.log('图片列表:', order.images);
+        
+        // 先获取所有图片的可访问 URL
+        const imageUrls = await Promise.all(
+            order.images.map(img => getImageUrl(img))
+        );
+        
+        console.log('获取到的图片 URL:', imageUrls);
+        
+        // 加载所有图片
+        const images = await Promise.all(imageUrls.map(url => {
+            return new Promise<HTMLImageElement>((resolve, reject) => {
+                const img = new Image();
+                img.crossOrigin = "anonymous";
+                
+                const timeout = setTimeout(() => {
+                    reject(new Error('图片加载超时: ' + url));
+                }, 30000);
+                
+                img.onload = () => {
+                    clearTimeout(timeout);
+                    resolve(img);
+                };
+                
+                img.onerror = (e) => {
+                    clearTimeout(timeout);
+                    console.error('加载图片失败:', url, e);
+                    reject(new Error('加载图片失败: ' + url));
+                };
+                
+                img.src = url;
+            });
+        }));
+        
         if (images.length === 0) throw new Error("No images");
 
         // Settings for the canvas

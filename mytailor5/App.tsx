@@ -8,6 +8,8 @@ import { OrderForm } from './components/OrderForm';
 import { OrderList } from './components/OrderList';
 import { Settings } from './components/Settings';
 import { Auth } from './components/Auth';
+// 导入调试工具（开发用）
+import './services/debug';
 
 function App() {
   const [view, setView] = useState<ViewState>('dashboard');
