@@ -13,3 +13,4 @@ update public.orders
 -- 3. 关闭 RLS，让所有请求都可读写（仅限于携带 anon key 的客户端）
 alter table public.orders disable row level security;
 
+

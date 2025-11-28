@@ -566,7 +566,7 @@ export const OrderList: React.FC<Props> = ({ orders, onRefresh }) => {
 
       {/* Image Preview & Share Modal */}
       {previewImage && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 60 }}>
               <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setPreviewImage(null)} />
               <div className="relative w-full max-w-sm bg-transparent flex flex-col items-center space-y-4">
                   
