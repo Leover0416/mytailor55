@@ -10,7 +10,7 @@ interface Props {
 }
 
 const QUICK_TAGS = ['改裤脚', '换拉链', '收腰', '修补破洞', '换松紧', '钉扣子', '改袖长', '大改小'];
-const QUICK_PRICES = [10, 20, 50];
+const QUICK_PRICES = [5, 10, 20, 30, 40, 50];
 
 export const OrderForm: React.FC<Props> = ({ onSuccess }) => {
   const [images, setImages] = useState<string[]>([]);
@@ -297,20 +297,21 @@ export const OrderForm: React.FC<Props> = ({ onSuccess }) => {
 
             {/* Price Input */}
             <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700 flex justify-between items-center">
-                    <span>价格 (元)</span>
-                    <div className="flex space-x-2">
-                        {QUICK_PRICES.map(amt => (
-                            <button 
-                                key={amt}
-                                onClick={() => addPrice(amt)}
-                                className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs font-bold text-gray-600 transition-colors"
-                            >
-                                +{amt}
-                            </button>
-                        ))}
-                    </div>
+                <label className="text-sm font-bold text-gray-700 block mb-2">
+                    价格 (元)
                 </label>
+                <div className="flex flex-wrap gap-2 mb-3">
+                    {QUICK_PRICES.map(amt => (
+                        <button 
+                            key={amt}
+                            type="button"
+                            onClick={() => addPrice(amt)}
+                            className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs font-bold text-gray-700 transition-colors active:scale-95"
+                        >
+                            +{amt}
+                        </button>
+                    ))}
+                </div>
                 <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg font-bold">¥</span>
                     <input

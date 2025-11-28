@@ -441,7 +441,7 @@ export const Stats: React.FC<Props> = ({ orders, onRefresh }) => {
 
       {/* Order Detail Modal */}
       {selectedOrder && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
               <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedOrder(null)} />
               <div className="bg-white rounded-3xl w-full max-w-lg h-[90vh] overflow-hidden relative z-10 shadow-2xl flex flex-col">
                   
@@ -455,7 +455,7 @@ export const Stats: React.FC<Props> = ({ orders, onRefresh }) => {
                       </button>
                   </div>
 
-                  <div className="overflow-y-auto flex-1 bg-gray-50" style={{ WebkitOverflowScrolling: 'touch' }}>
+                  <div className="overflow-y-auto flex-1 bg-gray-50" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
                       
                       {/* Image Section */}
                       <div className="bg-gray-100 flex flex-col space-y-1 pb-1">
@@ -558,7 +558,10 @@ export const Stats: React.FC<Props> = ({ orders, onRefresh }) => {
                                           key={order.id} 
                                           onClick={() => {
                                               setShowPendingList(false);
-                                              setSelectedOrder(order);
+                                              // 使用 setTimeout 确保弹窗关闭后再打开详情，避免 z-index 冲突
+                                              setTimeout(() => {
+                                                  setSelectedOrder(order);
+                                              }, 100);
                                           }}
                                           className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 cursor-pointer active:scale-[0.98] transition-transform hover:shadow-md"
                                       >
@@ -641,7 +644,10 @@ export const Stats: React.FC<Props> = ({ orders, onRefresh }) => {
                                           key={order.id} 
                                           onClick={() => {
                                               setShowOverdueList(false);
-                                              setSelectedOrder(order);
+                                              // 使用 setTimeout 确保弹窗关闭后再打开详情，避免 z-index 冲突
+                                              setTimeout(() => {
+                                                  setSelectedOrder(order);
+                                              }, 100);
                                           }}
                                           className="bg-white p-4 rounded-2xl shadow-sm border-2 border-red-200 cursor-pointer active:scale-[0.98] transition-transform hover:shadow-md"
                                       >
