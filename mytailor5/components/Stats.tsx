@@ -251,24 +251,22 @@ export const Stats: React.FC<Props> = ({ orders, onRefresh }) => {
                             <div 
                                 key={order.id} 
                                 onClick={() => setSelectedOrder(order)}
-                                className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 cursor-pointer active:scale-[0.98] transition-transform hover:shadow-md"
+                                className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 cursor-pointer active:scale-[0.98] transition-transform hover:shadow-md"
                             >
-                                <div className="flex items-start gap-3">
-                                    <div className="w-14 h-14 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden">
                                         <ImageDisplay src={order.images?.[0] || (order as any).imageBase64} className="w-full h-full object-cover" alt="mini"/>
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-start justify-between gap-2 mb-1">
-                                            <div className="flex-1 min-w-0">
-                                                <div className="font-bold text-gray-900 text-base mb-1 truncate">{order.customerName || '未填写'}</div>
-                                                <div className="text-xs text-gray-500 line-clamp-2 leading-relaxed">{order.note || '无备注'}</div>
-                                            </div>
-                                            <div className="flex flex-col items-end flex-shrink-0 gap-1">
-                                                <span className="font-bold text-brand-600 text-lg">¥{order.price}</span>
-                                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold whitespace-nowrap ${order.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                                                    {order.status === 'completed' ? '✓ 已发货' : '○ 未发货'}
-                                                </span>
-                                            </div>
+                                    <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-bold text-gray-800 text-sm truncate mb-0.5">{order.customerName || '未填写'}</div>
+                                            <div className="text-xs text-gray-500 truncate">{order.note || '无备注'}</div>
+                                        </div>
+                                        <div className="flex flex-col items-end flex-shrink-0">
+                                            <span className="font-bold text-brand-600 text-base leading-tight">¥{order.price}</span>
+                                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full mt-0.5 ${order.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                {order.status === 'completed' ? '已发' : '未发'}
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
