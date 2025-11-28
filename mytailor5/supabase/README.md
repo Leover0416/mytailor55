@@ -14,16 +14,14 @@
 ## 2. 配置数据库
 
 1. 在 Supabase Dashboard 中，进入 **SQL Editor**
-2. 点击 **New Query**
-3. 复制 `supabase/migrations/001_initial_schema.sql` 文件的内容
-4. 粘贴到 SQL Editor 中
-5. 点击 **Run** 执行 SQL
+2. 依次执行以下文件的内容：
+   - `supabase/migrations/001_initial_schema.sql`
+   - `supabase/migrations/002_public_access.sql`
+3. 每个文件都点击 **Run** 执行
 
-这将创建：
-- `orders` 表
-- 必要的索引
-- Row Level Security (RLS) 策略
-- 自动更新时间戳的触发器
+第一份 SQL 会创建表结构与触发器，第二份 SQL 会将系统切换到「免登录模式」，包括：
+- 允许 `user_id` 为空并设置默认公共 ID
+- 关闭 orders 表的 RLS，端上无需登录即可访问
 
 ## 3. 配置 Storage
 
@@ -36,33 +34,26 @@
 
 ### 配置 Storage 策略
 
-1. 在 Storage 页面，点击 `orders` 存储桶
-2. 进入 **Policies** 标签
-3. 点击 **New Policy**，选择 **Create policy from scratch**
-4. 创建以下策略：
+可以直接在 SQL Editor 中执行 `supabase/storage-policies.sql`，或在 Dashboard 中创建策略。策略逻辑如下（允许 anon 角色上传/查看/删除）：
 
-**策略 1：允许用户上传自己的图片**
-- Policy name: `Users can upload their own images`
-- Allowed operation: `INSERT`
-- Policy definition:
 ```sql
-(user_id() = (storage.foldername(name))[1]::uuid)
-```
+create policy "anon can upload"
+on storage.objects
+for insert
+to public
+with check (bucket_id = 'orders' and auth.role() = 'anon');
 
-**策略 2：允许用户查看自己的图片**
-- Policy name: `Users can view their own images`
-- Allowed operation: `SELECT`
-- Policy definition:
-```sql
-(user_id() = (storage.foldername(name))[1]::uuid)
-```
+create policy "anon can view"
+on storage.objects
+for select
+to public
+using (bucket_id = 'orders' and auth.role() = 'anon');
 
-**策略 3：允许用户删除自己的图片**
-- Policy name: `Users can delete their own images`
-- Allowed operation: `DELETE`
-- Policy definition:
-```sql
-(user_id() = (storage.foldername(name))[1]::uuid)
+create policy "anon can delete"
+on storage.objects
+for delete
+to public
+using (bucket_id = 'orders' and auth.role() = 'anon');
 ```
 
 ## 4. 获取 API 密钥
@@ -125,35 +116,31 @@ npm run build
    - 发布目录：`dist`
    - 添加环境变量
 
-## 7. 配置认证（可选）
+## 7. 免登录模式说明
 
-如果需要邮箱验证：
-
-1. 在 Supabase Dashboard 中，进入 **Authentication** -> **Settings**
-2. 配置邮箱模板（可选）
-3. 可以关闭 "Enable email confirmations" 以简化注册流程
+- 本项目默认使用公共用户 ID（`PUBLIC_USER_ID`）写入 `orders` 表
+- 由于关闭了 RLS，持有 anon key 的客户端即可直接读写订单
+- 建议仅自己使用该链接；如果需要进一步保护，可以：
+  - 在 Supabase 项目设置中限制允许访问的域名 / IP
+  - 或重新启用 RLS，并在前端添加简单密码
 
 ## 8. 测试部署
 
 1. 访问部署的网站
-2. 注册一个新账户
-3. 创建一条测试订单
-4. 检查数据是否保存到 Supabase 数据库
+2. 直接创建一条订单（无需登录）
+3. 检查图片上传和长图生成功能是否正常
+4. 在 Supabase Dashboard 的 Table Editor 中确认数据已写入
 
 ## 故障排除
 
-### 问题：无法上传图片
-- 检查 Storage 策略是否正确配置
-- 确认存储桶名称是 `orders`
-- 检查用户是否已登录
+### 问题：无法上传或读取图片
+- 检查 Storage 策略是否已允许 `auth.role() = 'anon'`
+- 确认存储桶名称为 `orders`
+- 查看浏览器控制台的具体错误
 
-### 问题：无法查询订单
-- 检查 RLS 策略是否正确
-- 确认用户 ID 匹配
-
-### 问题：认证失败
-- 检查环境变量是否正确
-- 确认 Supabase URL 和 Key 正确
+### 问题：无法读取订单
+- 确认已经执行 `002_public_access.sql`
+- 检查 Supabase Dashboard 中 orders 表的 RLS 是否已关闭
 
 ## 免费额度
 

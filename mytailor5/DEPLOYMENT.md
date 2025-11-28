@@ -46,7 +46,6 @@ npm run build
 4. 添加环境变量：
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
-   - `API_KEY`（可选）
 5. 部署
 
 ### 选项 2：Netlify
@@ -73,8 +72,8 @@ npm run build
 
 ## 注意事项
 
-1. **安全性**：`VITE_SUPABASE_ANON_KEY` 是公开的，但 Supabase 的 RLS 策略会保护您的数据
-2. **图片存储**：图片存储在 Supabase Storage 中，每个用户只能访问自己的图片
+1. **安全性**：本项目默认关闭 orders 表 RLS，实现免登录访问。请保管好部署地址和 anon key，必要时在 Supabase 设置中限制允许访问的域名/IP。
+2. **图片存储**：图片存储在 Supabase Storage 的 `orders` bucket，并通过签名 URL 访问。请务必按照 `supabase/storage-policies.sql` 配置策略。
 3. **数据备份**：建议定期导出数据（使用设置页面的导出功能）
 
 ## 更新部署
@@ -87,7 +86,7 @@ npm run build
 
 如果需要更新数据库结构：
 
-1. 修改 `supabase/migrations/001_initial_schema.sql`
-2. 在 Supabase Dashboard 的 SQL Editor 中执行新的 SQL
+1. 修改/新增 `supabase/migrations/*.sql`
+2. 在 Supabase Dashboard 的 SQL Editor 中依次执行
 3. 或者使用 Supabase CLI：`supabase db push`
 

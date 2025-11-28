@@ -4,15 +4,7 @@ import { supabase } from './supabase';
 export const debugImages = async () => {
   console.log('=== 开始调试图片问题 ===');
   
-  // 1. 检查用户登录状态
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    console.error('❌ 用户未登录:', authError);
-    return;
-  }
-  console.log('✅ 用户已登录:', user.id);
-  
-  // 2. 检查订单数据
+  // 1. 检查订单数据
   const { data: orders, error: ordersError } = await supabase
     .from('orders')
     .select('id, images, customer_name')
@@ -25,7 +17,7 @@ export const debugImages = async () => {
   
   console.log('✅ 找到订单数量:', orders?.length || 0);
   
-  // 3. 检查图片路径格式
+  // 2. 检查图片路径格式
   orders?.forEach((order, index) => {
     console.log(`\n订单 ${index + 1}:`, order.customer_name);
     console.log('图片数组:', order.images);
@@ -43,7 +35,7 @@ export const debugImages = async () => {
     }
   });
   
-  // 4. 检查 Storage 存储桶
+  // 3. 检查 Storage 存储桶
   const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
   if (bucketsError) {
     console.error('❌ 获取存储桶失败:', bucketsError);
@@ -61,11 +53,17 @@ export const debugImages = async () => {
     }
   }
   
-  // 5. 测试生成签名 URL
+  // 4. 测试生成签名 URL
   if (orders && orders.length > 0 && orders[0].images && orders[0].images.length > 0) {
     const testImagePath = orders[0].images[0];
+    let filePath = '';
     if (testImagePath.startsWith('orders/')) {
-      const filePath = testImagePath.replace('orders/', '');
+      filePath = testImagePath.replace('orders/', '');
+    } else if (testImagePath.startsWith('public/')) {
+      filePath = testImagePath;
+    }
+
+    if (filePath) {
       console.log('\n测试生成签名 URL...');
       console.log('文件路径:', filePath);
       
@@ -89,4 +87,6 @@ export const debugImages = async () => {
 if (typeof window !== 'undefined') {
   (window as any).debugImages = debugImages;
 }
+
+
 

@@ -1,6 +1,11 @@
 import { Order } from '../types';
 import { supabase } from './supabase';
 
+const STORAGE_BUCKET = 'orders';
+const STORAGE_ROOT_FOLDER = 'public';
+const PUBLIC_USER_ID = '00000000-0000-0000-0000-000000000001';
+const SIGNED_URL_TTL = 60 * 60; // 1 小时
+
 // ============ 图片处理函数 ============
 
 export const compressImage = (file: File): Promise<string> => {
@@ -46,21 +51,14 @@ const uploadImageToStorage = async (
   index: number
 ): Promise<string> => {
   try {
-    // 获取当前用户
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('用户未登录');
-
-    // 将 base64 转换为 Blob
     const base64Response = await fetch(base64Data);
     const blob = await base64Response.blob();
     
-    // 生成文件名
     const fileExt = 'jpg';
-    const fileName = `${user.id}/${orderId}/${index}.${fileExt}`;
+    const fileName = `${STORAGE_ROOT_FOLDER}/${orderId}/${index}.${fileExt}`;
     
-    // 上传到 Supabase Storage
-    const { data, error } = await supabase.storage
-      .from('orders')
+    const { error } = await supabase.storage
+      .from(STORAGE_BUCKET)
       .upload(fileName, blob, {
         contentType: 'image/jpeg',
         upsert: true,
@@ -68,12 +66,9 @@ const uploadImageToStorage = async (
 
     if (error) throw error;
 
-    // 对于 Private 存储桶，返回文件路径（用于后续生成签名 URL）
-    // 格式：orders/userId/orderId/index.jpg
-    return `orders/${fileName}`;
+    return fileName;
   } catch (error) {
     console.error('图片上传失败:', error);
-    // 如果上传失败，返回原始 base64（作为后备方案）
     return base64Data;
   }
 };
@@ -83,11 +78,14 @@ const uploadImageToStorage = async (
  */
 const uploadImages = async (images: string[], orderId: string): Promise<string[]> => {
   const uploadPromises = images.map((img, index) => {
-    // 如果已经是 URL 或路径，直接返回
-    if (img.startsWith('http://') || img.startsWith('https://') || img.startsWith('orders/')) {
+    if (
+      img.startsWith('http://') ||
+      img.startsWith('https://') ||
+      img.startsWith(`${STORAGE_ROOT_FOLDER}/`) ||
+      img.startsWith('orders/')
+    ) {
       return Promise.resolve(img);
     }
-    // 否则上传到 Storage
     return uploadImageToStorage(img, orderId, index);
   });
   
@@ -104,61 +102,49 @@ export const getImageUrl = async (imagePath: string): Promise<string> => {
   }
   
   try {
-    // 如果是 base64，直接返回
-    if (imagePath.startsWith('data:image')) {
+    if (imagePath.startsWith('data:image') || imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
       return imagePath;
     }
     
-    // 如果是完整的 HTTP URL，直接返回
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-      return imagePath;
-    }
-    
-    // 如果是 Storage 路径（格式：orders/userId/orderId/index.jpg）
+    // 兼容旧数据：以 orders/ 开头的路径带有存储桶前缀
     if (imagePath.startsWith('orders/')) {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError || !user) {
-        console.error('用户未登录或认证失败:', authError);
-        // 返回原路径，让调用方处理
-        return imagePath;
-      }
-      
-      // 提取文件路径（去掉 'orders/' 前缀）
-      const filePath = imagePath.replace(/^orders\//, '');
-      
-      if (!filePath) {
+      const normalized = imagePath.replace(/^orders\//, '');
+      if (!normalized) {
         console.error('无效的文件路径:', imagePath);
         return imagePath;
       }
-      
-      // 生成签名 URL（有效期 1 小时）
+
       const { data, error } = await supabase.storage
-        .from('orders')
-        .createSignedUrl(filePath, 3600); // 1小时有效期
-      
-      if (error) {
+        .from(STORAGE_BUCKET)
+        .createSignedUrl(normalized, SIGNED_URL_TTL);
+
+      if (error || !data?.signedUrl) {
         console.error('生成签名 URL 失败:', error);
-        console.error('文件路径:', filePath);
-        console.error('错误详情:', JSON.stringify(error, null, 2));
-        // 返回原路径，让调用方处理
         return imagePath;
       }
-      
-      if (!data || !data.signedUrl) {
-        console.error('签名 URL 为空，文件路径:', filePath);
+
+      return data.signedUrl;
+    }
+
+    // 新数据：直接存储 bucket 内的路径
+    if (imagePath.startsWith(`${STORAGE_ROOT_FOLDER}/`)) {
+      const { data, error } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .createSignedUrl(imagePath, SIGNED_URL_TTL);
+
+      if (error || !data?.signedUrl) {
+        console.error('生成签名 URL 失败:', error);
         return imagePath;
       }
-      
+
       return data.signedUrl;
     }
     
-    // 默认返回原路径（可能是旧格式或其他格式）
     console.warn('未知的图片路径格式:', imagePath);
     return imagePath;
   } catch (error) {
     console.error('获取图片 URL 失败:', error);
     console.error('图片路径:', imagePath);
-    // 失败时返回原路径
     return imagePath;
   }
 };
@@ -211,10 +197,6 @@ const generateUUID = (): string => {
 
 export const saveOrder = async (order: Order): Promise<void> => {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('用户未登录，请先登录');
-
-    // 如果没有 ID 或 ID 不是 UUID 格式，生成新的 UUID
     let orderId = order.id;
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     const isNewOrder = !orderId || !uuidRegex.test(orderId);
@@ -223,13 +205,12 @@ export const saveOrder = async (order: Order): Promise<void> => {
       orderId = generateUUID();
     }
 
-    // 上传图片到 Storage（使用确定的 orderId）
     const uploadedImages = await uploadImages(order.images, orderId);
 
     const dbData: any = {
       ...orderToDb({ ...order, images: uploadedImages }),
-      user_id: user.id,
-      id: orderId, // 始终使用确定的 ID
+      user_id: PUBLIC_USER_ID,
+      id: orderId,
     };
 
     const { data: savedData, error } = await supabase
@@ -240,7 +221,6 @@ export const saveOrder = async (order: Order): Promise<void> => {
 
     if (error) throw error;
     
-    // 更新 order.id 为保存后的 ID（如果是新订单）
     if (savedData) {
       order.id = savedData.id;
     }
@@ -256,12 +236,6 @@ export const updateOrder = async (order: Order): Promise<void> => {
 
 export const getOrders = async (): Promise<Order[]> => {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      console.warn('用户未登录');
-      return [];
-    }
-
     const { data, error } = await supabase
       .from('orders')
       .select('*')
@@ -271,21 +245,17 @@ export const getOrders = async (): Promise<Order[]> => {
 
     const orders = (data || []).map(dbToOrder);
     
-    // 兼容旧数据：处理 imageBase64 和不同格式的图片路径
     return orders.map(o => {
       let images = o.images || [];
       
-      // 兼容旧格式：imageBase64
-      if (images.length === 0 && (o as any).imageBase64) {
+      if ((!images || images.length === 0) && (o as any).imageBase64) {
         images = [(o as any).imageBase64];
       }
       
-      // 确保 images 是数组
       if (!Array.isArray(images)) {
         images = [];
       }
       
-      // 过滤空值
       images = images.filter(img => img && img.trim() !== '');
       
       return {
@@ -301,10 +271,6 @@ export const getOrders = async (): Promise<Order[]> => {
 
 export const deleteOrder = async (id: string): Promise<void> => {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('用户未登录');
-
-    // 删除订单记录
     const { error } = await supabase
       .from('orders')
       .delete()
@@ -312,21 +278,19 @@ export const deleteOrder = async (id: string): Promise<void> => {
 
     if (error) throw error;
 
-    // 可选：删除关联的图片文件
     try {
       const files = await supabase.storage
-        .from('orders')
-        .list(`${user.id}/${id}/`);
+        .from(STORAGE_BUCKET)
+        .list(`${STORAGE_ROOT_FOLDER}/${id}/`);
       
-      if (files.data) {
-        const filePaths = files.data.map(f => `${user.id}/${id}/${f.name}`);
+      if (files.data && files.data.length > 0) {
+        const filePaths = files.data.map(f => `${STORAGE_ROOT_FOLDER}/${id}/${f.name}`);
         await supabase.storage
-          .from('orders')
+          .from(STORAGE_BUCKET)
           .remove(filePaths);
       }
     } catch (storageError) {
       console.warn('删除图片文件失败:', storageError);
-      // 不阻止删除订单，只记录警告
     }
   } catch (error) {
     console.error('删除订单失败:', error);

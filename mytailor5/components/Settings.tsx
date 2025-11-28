@@ -1,7 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { Download, Upload, Database, CheckCircle, AlertTriangle, FileSpreadsheet, LogOut } from 'lucide-react';
+import { Download, Upload, Database, CheckCircle, AlertTriangle, FileSpreadsheet } from 'lucide-react';
 import { exportData, importData, exportToCSV } from '../services/db';
-import { supabase } from '../services/supabase';
 
 interface Props {
   onRefresh: () => void;
@@ -72,13 +71,6 @@ export const Settings: React.FC<Props> = ({ onRefresh }) => {
       }
     };
     reader.readAsText(file);
-  };
-
-  const handleLogout = async () => {
-    if (confirm('确定要退出登录吗？')) {
-      await supabase.auth.signOut();
-      window.location.reload();
-    }
   };
 
   return (
@@ -155,18 +147,11 @@ export const Settings: React.FC<Props> = ({ onRefresh }) => {
 
          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
              <h3 className="font-bold text-gray-800 mb-2">关于小刘裁缝铺</h3>
-             <p className="text-sm text-gray-500 mb-4">
-                 版本 v2.0.0 (云端版)<br/>
-                 数据存储在 Supabase 云端，安全可靠。<br/>
+             <p className="text-sm text-gray-500">
+                 版本 v2.0.0 (免登录云端版)<br/>
+                 数据实时同步到 Supabase，任意设备打开即可使用。<br/>
                  建议每周导出一次 Excel 或备份以防丢失。
              </p>
-             <button
-               onClick={handleLogout}
-               className="w-full flex items-center justify-center py-3 bg-red-50 text-red-600 font-bold rounded-xl border border-red-200 hover:bg-red-100 transition-colors"
-             >
-               <LogOut className="w-5 h-5 mr-2" />
-               退出登录
-             </button>
          </div>
       </div>
     </div>
