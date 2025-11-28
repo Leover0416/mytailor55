@@ -47,21 +47,52 @@ export const OrderForm: React.FC<Props> = ({ onSuccess }) => {
   }, []);
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>, src: 'online' | 'offline') => {
-    if (e.target.files && e.target.files.length > 0) {
-      setIsProcessing(true);
-      try {
-        const newImages: string[] = [];
-        for (let i = 0; i < e.target.files.length; i++) {
-            const compressed = await compressImage(e.target.files[i]);
+    const files = e.target.files;
+    if (!files || files.length === 0) {
+      console.warn('没有选择文件');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const newImages: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!file) continue;
+        
+        console.log(`处理图片 ${i + 1}/${files.length}:`, file.name, file.size, 'bytes');
+        
+        try {
+          const compressed = await compressImage(file);
+          if (compressed && compressed.startsWith('data:image')) {
             newImages.push(compressed);
+            console.log(`图片 ${i + 1} 压缩成功`);
+          } else {
+            console.error(`图片 ${i + 1} 压缩失败: 返回的不是有效的 base64 数据`);
+            alert(`图片 ${file.name} 处理失败，请重试`);
+          }
+        } catch (imgErr) {
+          console.error(`图片 ${i + 1} 处理错误:`, imgErr);
+          alert(`图片 ${file.name} 处理失败: ${imgErr instanceof Error ? imgErr.message : '未知错误'}`);
         }
+      }
+      
+      if (newImages.length > 0) {
         setImages(prev => [...prev, ...newImages]);
         setSource(src);
-      } catch (err) {
-        alert('图片处理失败');
-      } finally {
-        setIsProcessing(false);
-        if(e.target) e.target.value = '';
+        console.log(`成功添加 ${newImages.length} 张图片`);
+      } else {
+        console.warn('没有成功处理任何图片');
+        alert('图片处理失败，请检查图片格式是否正确');
+      }
+    } catch (err) {
+      console.error('图片处理整体失败:', err);
+      alert(`图片处理失败: ${err instanceof Error ? err.message : '未知错误'}`);
+    } finally {
+      setIsProcessing(false);
+      // 重置 input，允许重复选择同一文件
+      if (e.target) {
+        e.target.value = '';
       }
     }
   };
@@ -193,14 +224,30 @@ export const OrderForm: React.FC<Props> = ({ onSuccess }) => {
                             ))}
                             <div className="flex-shrink-0 w-32 h-32 flex flex-col gap-2">
                             <button 
-                                onClick={() => cameraInputRef.current?.click()}
+                                type="button"
+                                onClick={() => {
+                                    console.log('点击拍照按钮');
+                                    if (cameraInputRef.current) {
+                                        cameraInputRef.current.click();
+                                    } else {
+                                        console.error('cameraInputRef 未初始化');
+                                    }
+                                }}
                                 className="flex-1 rounded-xl border-2 border-dashed border-blue-200 bg-blue-50 flex flex-col items-center justify-center text-blue-400 hover:bg-blue-100 transition-colors"
                             >
                                 <Camera size={20} />
                                 <span className="text-xs font-bold mt-1">+拍照</span>
                             </button>
                             <button 
-                                onClick={() => galleryInputRef.current?.click()}
+                                type="button"
+                                onClick={() => {
+                                    console.log('点击相册按钮');
+                                    if (galleryInputRef.current) {
+                                        galleryInputRef.current.click();
+                                    } else {
+                                        console.error('galleryInputRef 未初始化');
+                                    }
+                                }}
                                 className="flex-1 rounded-xl border-2 border-dashed border-purple-200 bg-purple-50 flex flex-col items-center justify-center text-purple-400 hover:bg-purple-100 transition-colors"
                             >
                                 <Upload size={20} />
@@ -211,7 +258,14 @@ export const OrderForm: React.FC<Props> = ({ onSuccess }) => {
                 ) : (
                     <div className="grid grid-cols-2 gap-3 h-32">
                         <div 
-                            onClick={() => cameraInputRef.current?.click()}
+                            onClick={() => {
+                                console.log('点击拍照按钮（空状态）');
+                                if (cameraInputRef.current) {
+                                    cameraInputRef.current.click();
+                                } else {
+                                    console.error('cameraInputRef 未初始化');
+                                }
+                            }}
                             className="bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all active:scale-95 text-blue-700"
                         >
                             <div className="bg-white p-2 rounded-full shadow-sm mb-2 text-blue-600">
@@ -222,7 +276,14 @@ export const OrderForm: React.FC<Props> = ({ onSuccess }) => {
                         </div>
 
                         <div 
-                             onClick={() => galleryInputRef.current?.click()}
+                             onClick={() => {
+                                 console.log('点击相册按钮（空状态）');
+                                 if (galleryInputRef.current) {
+                                     galleryInputRef.current.click();
+                                 } else {
+                                     console.error('galleryInputRef 未初始化');
+                                 }
+                             }}
                              className="bg-purple-50 hover:bg-purple-100 border border-purple-100 rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all active:scale-95 text-purple-700"
                         >
                              <div className="bg-white p-2 rounded-full shadow-sm mb-2 text-purple-600">

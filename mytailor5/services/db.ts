@@ -9,45 +9,90 @@ const PUBLIC_USER_ID = '00000000-0000-0000-0000-000000000001';
 
 export const compressImage = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
+    // 验证文件类型
+    if (!file.type.startsWith('image/')) {
+      reject(new Error('文件不是有效的图片格式'));
+      return;
+    }
+
     const reader = new FileReader();
-    reader.readAsDataURL(file);
+    
+    reader.onerror = (err) => {
+      console.error('FileReader 错误:', err);
+      reject(new Error('读取文件失败'));
+    };
+
     reader.onload = (event) => {
+      const result = event.target?.result;
+      if (!result || typeof result !== 'string') {
+        reject(new Error('文件读取结果无效'));
+        return;
+      }
+
       const img = new Image();
-      img.src = event.target?.result as string;
+      
+      img.onerror = (err) => {
+        console.error('图片加载错误:', err);
+        reject(new Error('图片加载失败，请检查图片是否损坏'));
+      };
+
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const sizeMB = file.size / (1024 * 1024);
-        let quality = 0.85;
-        let maxWidth = 1600;
+        try {
+          const canvas = document.createElement('canvas');
+          const sizeMB = file.size / (1024 * 1024);
+          let quality = 0.85;
+          let maxWidth = 1600;
 
-        if (sizeMB > 6) {
-          quality = 0.65;
-          maxWidth = 1200;
-        } else if (sizeMB > 3) {
-          quality = 0.75;
-          maxWidth = 1400;
-        }
+          if (sizeMB > 6) {
+            quality = 0.65;
+            maxWidth = 1200;
+          } else if (sizeMB > 3) {
+            quality = 0.75;
+            maxWidth = 1400;
+          }
 
-        if (img.width <= maxWidth) {
-          canvas.width = img.width;
-          canvas.height = img.height;
-        } else {
-          const scaleSize = maxWidth / img.width;
-          canvas.width = maxWidth;
-          canvas.height = img.height * scaleSize;
-        }
+          // 确保图片尺寸有效
+          if (img.width <= 0 || img.height <= 0) {
+            reject(new Error('图片尺寸无效'));
+            return;
+          }
 
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-           resolve(canvas.toDataURL('image/jpeg', quality));
-        } else {
-           reject('Canvas context failed');
+          if (img.width <= maxWidth) {
+            canvas.width = img.width;
+            canvas.height = img.height;
+          } else {
+            const scaleSize = maxWidth / img.width;
+            canvas.width = maxWidth;
+            canvas.height = Math.round(img.height * scaleSize);
+          }
+
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('无法创建 Canvas 上下文'));
+            return;
+          }
+
+          // 绘制图片到 canvas
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          
+          // 转换为 base64
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          if (!dataUrl || !dataUrl.startsWith('data:image')) {
+            reject(new Error('图片压缩失败'));
+            return;
+          }
+
+          resolve(dataUrl);
+        } catch (error) {
+          console.error('图片处理过程错误:', error);
+          reject(error instanceof Error ? error : new Error('图片处理失败'));
         }
       };
-      img.onerror = (err) => reject(err);
+
+      img.src = result;
     };
-    reader.onerror = (err) => reject(err);
+
+    reader.readAsDataURL(file);
   });
 };
 
@@ -236,7 +281,7 @@ export const saveOrder = async (order: Order): Promise<void> => {
 };
 
 export const updateOrder = async (order: Order): Promise<void> => {
-  return saveOrder(order);
+    return saveOrder(order);
 };
 
 export const getOrders = async (): Promise<Order[]> => {
@@ -264,10 +309,10 @@ export const getOrders = async (): Promise<Order[]> => {
       images = images.filter(img => img && img.trim() !== '');
       
       return {
-        ...o,
+          ...o,
         images
-      };
-    });
+    };
+  });
   } catch (error) {
     console.error('获取订单失败:', error);
     throw new Error('获取订单失败: ' + (error as Error).message);

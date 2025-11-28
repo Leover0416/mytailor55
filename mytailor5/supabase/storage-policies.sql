@@ -1,20 +1,44 @@
 -- Storage 策略配置
--- 在 Supabase Dashboard -> Storage -> orders -> Policies 中执行这些策略
--- 建议将 orders bucket 设置为 public，下列策略主要限制写入/删除操作
+-- 重要：需要在 Supabase Dashboard 的 SQL Editor 中执行这些 SQL 语句
+-- 执行步骤：
+-- 1. 登录 Supabase Dashboard (https://supabase.com/dashboard)
+-- 2. 选择您的项目
+-- 3. 点击左侧菜单的 "SQL Editor"
+-- 4. 点击 "New query"
+-- 5. 复制粘贴下面的所有 SQL 语句
+-- 6. 点击 "Run" 执行
 
-create policy "anon can upload"
-on storage.objects
-for insert
-to public
-with check (
-  bucket_id = 'orders' and auth.role() = 'anon'
+-- 注意：如果策略已存在，会报错。可以先删除旧策略，或使用 DROP POLICY IF EXISTS
+
+-- 删除旧策略（如果存在）
+DROP POLICY IF EXISTS "anon can upload" ON storage.objects;
+DROP POLICY IF EXISTS "anon can view" ON storage.objects;
+DROP POLICY IF EXISTS "anon can delete" ON storage.objects;
+
+-- 允许匿名用户上传图片到 orders bucket
+CREATE POLICY "anon can upload"
+ON storage.objects
+FOR INSERT
+TO public
+WITH CHECK (
+  bucket_id = 'orders' AND auth.role() = 'anon'
 );
 
-create policy "anon can delete"
-on storage.objects
-for delete
-to public
-using (
-  bucket_id = 'orders' and auth.role() = 'anon'
+-- 允许匿名用户查看 orders bucket 中的图片
+CREATE POLICY "anon can view"
+ON storage.objects
+FOR SELECT
+TO public
+USING (
+  bucket_id = 'orders' AND auth.role() = 'anon'
+);
+
+-- 允许匿名用户删除 orders bucket 中的图片
+CREATE POLICY "anon can delete"
+ON storage.objects
+FOR DELETE
+TO public
+USING (
+  bucket_id = 'orders' AND auth.role() = 'anon'
 );
 
