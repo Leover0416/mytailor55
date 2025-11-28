@@ -74,10 +74,13 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-800 font-sans selection:bg-brand-200">
-      {overdueOrders.length > 0 && (
+      {overdueOrders.length > 0 && view === 'dashboard' && (
         <div className="max-w-md mx-auto px-4 pt-2">
-          <div className="bg-red-50 border border-red-100 rounded-2xl p-4 flex items-start gap-3 shadow-sm">
-            <div className="text-2xl">⚠️</div>
+          <div 
+            onClick={() => setView('list')}
+            className="bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-2xl p-4 flex items-start gap-3 shadow-md cursor-pointer active:scale-[0.98] transition-transform hover:shadow-lg"
+          >
+            <div className="text-2xl animate-pulse">⚠️</div>
             <div className="flex-1">
               <p className="text-red-700 font-bold text-sm">
                 {`有 ${overdueOrders.length} 个订单超过 5 天未完成`}
@@ -89,10 +92,14 @@ function App() {
                   .join('、')}
                 {overdueOrders.length > 3 ? '...' : ''}
               </p>
+              <p className="text-[10px] text-red-400 mt-1">点击查看详情 →</p>
             </div>
             <button
-              onClick={() => setView('list')}
-              className="text-xs font-bold text-red-700 border border-red-200 rounded-full px-3 py-1 hover:bg-red-100 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                setView('list');
+              }}
+              className="text-xs font-bold text-white bg-red-500 rounded-full px-4 py-2 hover:bg-red-600 transition-colors shadow-sm flex-shrink-0"
             >
               去处理
             </button>

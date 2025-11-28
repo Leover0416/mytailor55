@@ -13,6 +13,8 @@ interface Props {
 export const Stats: React.FC<Props> = ({ orders, onRefresh }) => {
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [showPendingList, setShowPendingList] = useState(false);
+  const [showOverdueList, setShowOverdueList] = useState(false);
 
   // --- WEEKLY VIEW STATE ---
   // Initialize to the start of the current week (Monday)
@@ -55,14 +57,14 @@ export const Stats: React.FC<Props> = ({ orders, onRefresh }) => {
 
   const stats = useMemo(() => {
     const totalIncome = orders.reduce((sum, o) => sum + o.price, 0);
-    const pendingOrders = orders.filter(o => o.status === 'pending');
+    const pendingOrders = orders.filter(o => o.status === 'pending').sort((a, b) => b.createdAt - a.createdAt);
     
     // Critical Overdue Logic
     const now = Date.now();
     const criticalOrders = pendingOrders.filter(o => {
         const diff = (now - o.createdAt) / (1000 * 60 * 60 * 24);
         return diff > 5;
-    });
+    }).sort((a, b) => b.createdAt - a.createdAt);
 
     // Daily tasks for the calendar dots
     const tasksByDate: {[key: string]: {pending: number, completed: number}} = {};
@@ -73,7 +75,7 @@ export const Stats: React.FC<Props> = ({ orders, onRefresh }) => {
         else tasksByDate[d].pending++;
     });
 
-    return { totalIncome, pendingCount: pendingOrders.length, criticalCount: criticalOrders.length, tasksByDate };
+    return { totalIncome, pendingCount: pendingOrders.length, pendingOrders, criticalCount: criticalOrders.length, criticalOrders, tasksByDate };
   }, [orders]);
 
   // Chart data: Last 7 days trend
@@ -167,12 +169,18 @@ export const Stats: React.FC<Props> = ({ orders, onRefresh }) => {
 
       {/* Alert Section (Always Visible if Critical) */}
       {stats.criticalCount > 0 && (
-          <div className="mb-6 bg-red-50 border border-red-100 rounded-2xl p-4 flex items-center justify-between shadow-sm animate-pulse">
+          <div 
+              onClick={() => setShowOverdueList(true)}
+              className="mb-6 bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-2xl p-4 flex items-center justify-between shadow-md cursor-pointer active:scale-[0.98] transition-transform hover:shadow-lg"
+          >
               <div className="flex items-center text-red-700">
-                  <AlertCircle className="w-5 h-5 mr-2" />
-                  <span className="font-bold text-sm">有 {stats.criticalCount} 个订单积压超过5天！</span>
+                  <AlertCircle className="w-5 h-5 mr-2 animate-pulse" />
+                  <div>
+                      <span className="font-bold text-sm block">有 {stats.criticalCount} 个订单积压超过5天！</span>
+                      <span className="text-xs text-red-500 mt-0.5">点击查看详情</span>
+                  </div>
               </div>
-              <span className="bg-red-200 text-red-800 text-xs px-2 py-1 rounded-full font-bold">急</span>
+              <span className="bg-red-500 text-white text-xs px-3 py-1.5 rounded-full font-bold shadow-sm">急</span>
           </div>
       )}
 
@@ -243,20 +251,26 @@ export const Stats: React.FC<Props> = ({ orders, onRefresh }) => {
                             <div 
                                 key={order.id} 
                                 onClick={() => setSelectedOrder(order)}
-                                className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform"
+                                className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 cursor-pointer active:scale-[0.98] transition-transform hover:shadow-md"
                             >
-                                <div className="flex items-center space-x-3 overflow-hidden">
-                                    <ImageDisplay src={order.images?.[0] || (order as any).imageBase64} className="w-10 h-10 rounded-lg object-cover bg-gray-100 flex-shrink-0" alt="mini"/>
-                                    <div className="min-w-0">
-                                        <div className="font-bold text-gray-800 text-sm truncate">{order.customerName}</div>
-                                        <div className="text-xs text-gray-500 truncate">{order.note || '无备注'}</div>
+                                <div className="flex items-start gap-3">
+                                    <div className="w-14 h-14 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden">
+                                        <ImageDisplay src={order.images?.[0] || (order as any).imageBase64} className="w-full h-full object-cover" alt="mini"/>
                                     </div>
-                                </div>
-                                <div className="flex flex-col items-end flex-shrink-0 ml-2">
-                                    <span className="font-bold text-brand-600">¥{order.price}</span>
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${order.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                                        {order.status === 'completed' ? '已发' : '未发'}
-                                    </span>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-start justify-between gap-2 mb-1">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="font-bold text-gray-900 text-base mb-1 truncate">{order.customerName || '未填写'}</div>
+                                                <div className="text-xs text-gray-500 line-clamp-2 leading-relaxed">{order.note || '无备注'}</div>
+                                            </div>
+                                            <div className="flex flex-col items-end flex-shrink-0 gap-1">
+                                                <span className="font-bold text-brand-600 text-lg">¥{order.price}</span>
+                                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold whitespace-nowrap ${order.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                    {order.status === 'completed' ? '✓ 已发货' : '○ 未发货'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         ))}
@@ -270,12 +284,18 @@ export const Stats: React.FC<Props> = ({ orders, onRefresh }) => {
 
             {/* Quick Stats Cards */}
             <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-center">
+                <div 
+                    onClick={() => stats.pendingCount > 0 && setShowPendingList(true)}
+                    className={`bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-center transition-all ${stats.pendingCount > 0 ? 'cursor-pointer hover:shadow-md active:scale-[0.98] hover:border-orange-200' : ''}`}
+                >
                     <div className="flex items-center text-orange-500 mb-1">
                         <Clock size={16} className="mr-2"/>
                         <span className="text-xs font-bold">全店积压</span>
                     </div>
                     <div className="text-2xl font-bold text-gray-900">{stats.pendingCount} <span className="text-xs text-gray-400">单</span></div>
+                    {stats.pendingCount > 0 && (
+                        <span className="text-[10px] text-orange-500 mt-1">点击查看</span>
+                    )}
                 </div>
                 <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-center">
                     <div className="flex items-center text-green-600 mb-1">
@@ -425,19 +445,19 @@ export const Stats: React.FC<Props> = ({ orders, onRefresh }) => {
       {selectedOrder && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
               <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedOrder(null)} />
-              <div className="bg-white rounded-3xl w-full max-w-lg h-[85vh] overflow-hidden relative z-10 shadow-2xl flex flex-col">
+              <div className="bg-white rounded-3xl w-full max-w-lg h-[90vh] overflow-hidden relative z-10 shadow-2xl flex flex-col">
                   
                   {/* Close Button */}
-                  <div className="absolute top-4 right-4 z-20">
+                  <div className="absolute top-4 right-4 z-30">
                       <button 
                         onClick={() => setSelectedOrder(null)}
-                        className="bg-black/50 text-white p-2 rounded-full backdrop-blur-md hover:bg-black/70"
+                        className="bg-black/60 text-white p-2.5 rounded-full backdrop-blur-md hover:bg-black/80 transition-colors shadow-lg"
                       >
                           <XCircle size={20} />
                       </button>
                   </div>
 
-                  <div className="overflow-y-auto flex-1 bg-gray-50">
+                  <div className="overflow-y-auto flex-1 bg-gray-50" style={{ WebkitOverflowScrolling: 'touch' }}>
                       
                       {/* Image Section */}
                       <div className="bg-gray-100 flex flex-col space-y-1 pb-1">
@@ -493,16 +513,180 @@ export const Stats: React.FC<Props> = ({ orders, onRefresh }) => {
                       </div>
                   </div>
 
-                  <div className="p-4 border-t border-gray-100 bg-gray-50 relative z-20">
+                  <div className="p-4 border-t border-gray-100 bg-white relative z-20 flex-shrink-0">
                       <button 
                           onClick={() => {
                               setSelectedOrder(null);
                               if (onRefresh) onRefresh();
                           }}
-                          className="w-full py-4 rounded-2xl font-bold text-lg bg-brand-600 text-white shadow-lg transition-transform active:scale-95"
+                          className="w-full py-4 rounded-2xl font-bold text-lg bg-brand-600 text-white shadow-lg transition-transform active:scale-95 hover:bg-brand-700"
                       >
                           关闭
                       </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Pending Orders List Modal */}
+      {showPendingList && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowPendingList(false)} />
+              <div className="bg-white rounded-3xl w-full max-w-lg h-[85vh] overflow-hidden relative z-10 shadow-2xl flex flex-col">
+                  <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-orange-50 to-orange-100 flex-shrink-0">
+                      <div className="flex items-center justify-between">
+                          <div>
+                              <h2 className="text-xl font-bold text-gray-900 flex items-center">
+                                  <Clock size={20} className="mr-2 text-orange-600"/>
+                                  全店积压订单
+                              </h2>
+                              <p className="text-sm text-gray-600 mt-1">共 {stats.pendingOrders.length} 单待处理</p>
+                          </div>
+                          <button 
+                              onClick={() => setShowPendingList(false)}
+                              className="bg-white/80 text-gray-700 p-2 rounded-full hover:bg-white transition-colors"
+                          >
+                              <XCircle size={20} />
+                          </button>
+                      </div>
+                  </div>
+                  <div className="overflow-y-auto flex-1 p-4" style={{ WebkitOverflowScrolling: 'touch' }}>
+                      {stats.pendingOrders.length > 0 ? (
+                          <div className="space-y-3">
+                              {stats.pendingOrders.map(order => {
+                                  const daysDiff = Math.floor((Date.now() - order.createdAt) / (1000 * 60 * 60 * 24));
+                                  return (
+                                      <div 
+                                          key={order.id} 
+                                          onClick={() => {
+                                              setShowPendingList(false);
+                                              setSelectedOrder(order);
+                                          }}
+                                          className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 cursor-pointer active:scale-[0.98] transition-transform hover:shadow-md"
+                                      >
+                                          <div className="flex items-start gap-3">
+                                              <div className="w-16 h-16 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden">
+                                                  <ImageDisplay src={order.images?.[0] || (order as any).imageBase64} className="w-full h-full object-cover" alt="mini"/>
+                                              </div>
+                                              <div className="flex-1 min-w-0">
+                                                  <div className="flex items-start justify-between gap-2 mb-2">
+                                                      <div className="flex-1 min-w-0">
+                                                          <div className="font-bold text-gray-900 text-base mb-1 truncate">{order.customerName || '未填写'}</div>
+                                                          <div className="text-xs text-gray-500 line-clamp-2">{order.note || '无备注'}</div>
+                                                      </div>
+                                                      <div className="flex flex-col items-end flex-shrink-0 gap-1">
+                                                          <span className="font-bold text-brand-600 text-lg">¥{order.price}</span>
+                                                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-orange-100 text-orange-700 whitespace-nowrap">
+                                                              ○ 未发货
+                                                          </span>
+                                                      </div>
+                                                  </div>
+                                                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                                                      <Calendar size={12} />
+                                                      <span>{new Date(order.createdAt).toLocaleDateString('zh-CN')}</span>
+                                                      {daysDiff > 0 && (
+                                                          <span className={`px-2 py-0.5 rounded-full font-bold ${
+                                                              daysDiff > 10 ? 'bg-red-100 text-red-700' : 
+                                                              daysDiff > 7 ? 'bg-orange-100 text-orange-700' : 
+                                                              'bg-yellow-100 text-yellow-700'
+                                                          }`}>
+                                                              {daysDiff}天未发
+                                                          </span>
+                                                      )}
+                                                  </div>
+                                              </div>
+                                          </div>
+                                      </div>
+                                  );
+                              })}
+                          </div>
+                      ) : (
+                          <div className="text-center py-20 text-gray-400">
+                              <CheckCircle2 size={48} className="mx-auto mb-4 text-green-400" />
+                              <p className="text-lg font-bold">太棒了！没有积压订单</p>
+                          </div>
+                      )}
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Overdue Orders List Modal */}
+      {showOverdueList && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowOverdueList(false)} />
+              <div className="bg-white rounded-3xl w-full max-w-lg h-[85vh] overflow-hidden relative z-10 shadow-2xl flex flex-col">
+                  <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-red-50 to-orange-50 flex-shrink-0">
+                      <div className="flex items-center justify-between">
+                          <div>
+                              <h2 className="text-xl font-bold text-gray-900 flex items-center">
+                                  <AlertCircle size={20} className="mr-2 text-red-600 animate-pulse"/>
+                                  超期订单提醒
+                              </h2>
+                              <p className="text-sm text-red-600 mt-1">共 {stats.criticalOrders.length} 单超过5天未发货</p>
+                          </div>
+                          <button 
+                              onClick={() => setShowOverdueList(false)}
+                              className="bg-white/80 text-gray-700 p-2 rounded-full hover:bg-white transition-colors"
+                          >
+                              <XCircle size={20} />
+                          </button>
+                      </div>
+                  </div>
+                  <div className="overflow-y-auto flex-1 p-4" style={{ WebkitOverflowScrolling: 'touch' }}>
+                      {stats.criticalOrders.length > 0 ? (
+                          <div className="space-y-3">
+                              {stats.criticalOrders.map(order => {
+                                  const daysDiff = Math.floor((Date.now() - order.createdAt) / (1000 * 60 * 60 * 24));
+                                  return (
+                                      <div 
+                                          key={order.id} 
+                                          onClick={() => {
+                                              setShowOverdueList(false);
+                                              setSelectedOrder(order);
+                                          }}
+                                          className="bg-white p-4 rounded-2xl shadow-sm border-2 border-red-200 cursor-pointer active:scale-[0.98] transition-transform hover:shadow-md"
+                                      >
+                                          <div className="flex items-start gap-3">
+                                              <div className="w-16 h-16 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden">
+                                                  <ImageDisplay src={order.images?.[0] || (order as any).imageBase64} className="w-full h-full object-cover" alt="mini"/>
+                                              </div>
+                                              <div className="flex-1 min-w-0">
+                                                  <div className="flex items-start justify-between gap-2 mb-2">
+                                                      <div className="flex-1 min-w-0">
+                                                          <div className="font-bold text-gray-900 text-base mb-1 truncate">{order.customerName || '未填写'}</div>
+                                                          <div className="text-xs text-gray-500 line-clamp-2">{order.note || '无备注'}</div>
+                                                      </div>
+                                                      <div className="flex flex-col items-end flex-shrink-0 gap-1">
+                                                          <span className="font-bold text-brand-600 text-lg">¥{order.price}</span>
+                                                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-red-100 text-red-700 whitespace-nowrap">
+                                                              ○ 未发货
+                                                          </span>
+                                                      </div>
+                                                  </div>
+                                                  <div className="flex items-center gap-2 text-xs">
+                                                      <Calendar size={12} className="text-gray-400" />
+                                                      <span className="text-gray-500">{new Date(order.createdAt).toLocaleDateString('zh-CN')}</span>
+                                                      <span className={`px-2 py-0.5 rounded-full font-bold ${
+                                                          daysDiff > 10 ? 'bg-red-500 text-white' : 
+                                                          daysDiff > 7 ? 'bg-orange-500 text-white' : 
+                                                          'bg-yellow-500 text-white'
+                                                      }`}>
+                                                          ⚠️ {daysDiff}天未发
+                                                      </span>
+                                                  </div>
+                                              </div>
+                                          </div>
+                                      </div>
+                                  );
+                              })}
+                          </div>
+                      ) : (
+                          <div className="text-center py-20 text-gray-400">
+                              <CheckCircle2 size={48} className="mx-auto mb-4 text-green-400" />
+                              <p className="text-lg font-bold">没有超期订单</p>
+                          </div>
+                      )}
                   </div>
               </div>
           </div>
