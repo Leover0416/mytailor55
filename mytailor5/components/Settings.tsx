@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
-import { Download, Upload, Database, CheckCircle, AlertTriangle, FileSpreadsheet, FileText } from 'lucide-react';
+import React, { useRef, useState, useEffect } from 'react';
+import { Download, Upload, Database, CheckCircle, AlertTriangle, FileSpreadsheet, FileText, Smartphone } from 'lucide-react';
 import { exportData, importData, exportToCSV, getOrders } from '../services/db';
 import { generateOrdersPDF } from '../services/pdf';
 
@@ -10,7 +10,30 @@ interface Props {
 export const Settings: React.FC<Props> = ({ onRefresh }) => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 检测 PWA 安装提示
+  useEffect(() => {
+    // 检测是否已安装
+    if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
+      setIsInstalled(true);
+      return;
+    }
+
+    // 监听 beforeinstallprompt 事件
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
 
   const handleExportJSON = async () => {
     setLoading(true);
@@ -44,9 +67,10 @@ export const Settings: React.FC<Props> = ({ onRefresh }) => {
       const orders = await getOrders();
       if (!orders.length) {
         setMessage({ type: 'error', text: '暂无订单可导出' });
+        setLoading(false);
         return;
       }
-      const doc = generateOrdersPDF({ orders });
+      const doc = await generateOrdersPDF({ orders });
       doc.save(`小刘裁缝铺_订单汇总_${getDateStr()}.pdf`);
       setMessage({ type: 'success', text: 'PDF 已生成并下载' });
     } catch (e) {
@@ -93,6 +117,39 @@ export const Settings: React.FC<Props> = ({ onRefresh }) => {
     reader.readAsText(file);
   };
 
+  const handleInstallPWA = async () => {
+    if (deferredPrompt) {
+      // Chrome/Edge 等浏览器
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setMessage({ type: 'success', text: '正在安装到桌面...' });
+      }
+      setDeferredPrompt(null);
+    } else {
+      // iOS Safari 或其他浏览器，显示手动安装说明
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      const isAndroid = /Android/.test(navigator.userAgent);
+      
+      if (isIOS) {
+        setMessage({ 
+          type: 'success', 
+          text: 'iOS 用户：点击浏览器底部"分享"按钮，选择"添加到主屏幕"即可' 
+        });
+      } else if (isAndroid) {
+        setMessage({ 
+          type: 'success', 
+          text: 'Android 用户：点击浏览器菜单，选择"添加到主屏幕"或"安装应用"' 
+        });
+      } else {
+        setMessage({ 
+          type: 'success', 
+          text: '请使用浏览器菜单中的"安装应用"或"添加到主屏幕"功能' 
+        });
+      }
+    }
+  };
+
   return (
     <div className="p-4 max-w-md mx-auto pb-24">
       <h2 className="text-2xl font-bold text-gray-800 mb-6 font-serif">数据管理</h2>
@@ -106,6 +163,27 @@ export const Settings: React.FC<Props> = ({ onRefresh }) => {
 
       <div className="space-y-6">
         
+        {/* PWA Install Section */}
+        {!isInstalled && (
+          <div className="bg-gradient-to-br from-brand-500 to-brand-600 p-6 rounded-2xl shadow-lg border border-brand-400">
+            <div className="flex items-center mb-4 text-white">
+              <Smartphone className="w-6 h-6 mr-2" />
+              <h3 className="font-bold text-lg">添加到桌面</h3>
+            </div>
+            <p className="text-white/90 text-sm mb-4 leading-relaxed">
+              将应用添加到手机桌面，像原生 APP 一样快速打开，无需每次输入网址。
+            </p>
+            <button 
+              onClick={handleInstallPWA}
+              disabled={loading}
+              className="w-full flex items-center justify-center py-3 bg-white text-brand-600 font-bold rounded-xl shadow-lg hover:bg-gray-50 transition-colors"
+            >
+              <Smartphone className="w-5 h-5 mr-2" />
+              {deferredPrompt ? '立即添加到桌面' : '查看安装说明'}
+            </button>
+          </div>
+        )}
+
         {/* Export Section */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
             <div className="flex items-center mb-4 text-brand-600">

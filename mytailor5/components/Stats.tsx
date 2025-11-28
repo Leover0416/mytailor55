@@ -2,15 +2,17 @@
 import React, { useMemo, useState } from 'react';
 import { Order } from '../types';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Bar, Cell, YAxis } from 'recharts';
-import { TrendingUp, ShoppingBag, Calendar, AlertCircle, CheckCircle2, Clock, ChevronLeft, ChevronRight, Package, User, PieChart, LayoutList } from 'lucide-react';
+import { TrendingUp, ShoppingBag, Calendar, AlertCircle, CheckCircle2, Clock, ChevronLeft, ChevronRight, Package, User, PieChart, LayoutList, XCircle, MapPin, Globe } from 'lucide-react';
 import { ImageDisplay } from './ImageDisplay';
 
 interface Props {
   orders: Order[];
+  onRefresh?: () => void;
 }
 
-export const Stats: React.FC<Props> = ({ orders }) => {
+export const Stats: React.FC<Props> = ({ orders, onRefresh }) => {
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   // --- WEEKLY VIEW STATE ---
   // Initialize to the start of the current week (Monday)
@@ -238,7 +240,11 @@ export const Stats: React.FC<Props> = ({ orders }) => {
                 {selectedDateOrders.length > 0 ? (
                     <div className="space-y-3">
                         {selectedDateOrders.map(order => (
-                            <div key={order.id} className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
+                            <div 
+                                key={order.id} 
+                                onClick={() => setSelectedOrder(order)}
+                                className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform"
+                            >
                                 <div className="flex items-center space-x-3 overflow-hidden">
                                     <ImageDisplay src={order.images?.[0] || (order as any).imageBase64} className="w-10 h-10 rounded-lg object-cover bg-gray-100 flex-shrink-0" alt="mini"/>
                                     <div className="min-w-0">
@@ -385,7 +391,11 @@ export const Stats: React.FC<Props> = ({ orders }) => {
                             {week.orders.length > 0 && (
                                 <div className="divide-y divide-gray-50">
                                     {week.orders.map(order => (
-                                        <div key={order.id} className="p-3 flex justify-between items-center hover:bg-gray-50 transition-colors">
+                                        <div 
+                                            key={order.id} 
+                                            onClick={() => setSelectedOrder(order)}
+                                            className="p-3 flex justify-between items-center hover:bg-gray-50 transition-colors cursor-pointer active:scale-[0.98]"
+                                        >
                                             <div className="flex items-center space-x-3 overflow-hidden">
                                                 <div className="w-8 h-8 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden">
                                                     <ImageDisplay src={order.images?.[0] || (order as any).imageBase64} className="w-full h-full object-cover"/>
@@ -409,6 +419,93 @@ export const Stats: React.FC<Props> = ({ orders }) => {
                 )}
             </div>
         </div>
+      )}
+
+      {/* Order Detail Modal */}
+      {selectedOrder && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedOrder(null)} />
+              <div className="bg-white rounded-3xl w-full max-w-lg h-[85vh] overflow-hidden relative z-10 shadow-2xl flex flex-col">
+                  
+                  {/* Close Button */}
+                  <div className="absolute top-4 right-4 z-20">
+                      <button 
+                        onClick={() => setSelectedOrder(null)}
+                        className="bg-black/50 text-white p-2 rounded-full backdrop-blur-md hover:bg-black/70"
+                      >
+                          <XCircle size={20} />
+                      </button>
+                  </div>
+
+                  <div className="overflow-y-auto flex-1 bg-gray-50">
+                      
+                      {/* Image Section */}
+                      <div className="bg-gray-100 flex flex-col space-y-1 pb-1">
+                          {(selectedOrder.images && selectedOrder.images.length > 0 ? selectedOrder.images : [(selectedOrder as any).imageBase64]).map((img: string, idx: number) => (
+                              <div key={idx} className="relative w-full">
+                                  <ImageDisplay src={img} className="w-full h-auto object-cover" alt={`Detail ${idx+1}`} variant="full" />
+                                  <div className="absolute top-4 left-4 bg-black/50 text-white px-2 py-1 rounded-lg text-xs backdrop-blur-md">
+                                      {idx + 1} / {(selectedOrder.images || []).length || 1}
+                                  </div>
+                              </div>
+                          ))}
+                      </div>
+
+                      {/* Content Section */}
+                      <div className="p-6 space-y-6 bg-white rounded-t-3xl -mt-6 relative">
+                           {/* Source Badge */}
+                           <div className="flex justify-center -mt-10 mb-4">
+                                <span className={`px-3 py-1.5 rounded-xl text-xs font-bold text-white backdrop-blur-md shadow-lg flex items-center ${selectedOrder.source === 'offline' ? 'bg-blue-600' : 'bg-purple-600'}`}>
+                                    {selectedOrder.source === 'offline' ? <MapPin size={12} className="mr-1"/> : <Globe size={12} className="mr-1"/>}
+                                    {selectedOrder.source === 'offline' ? '线下实体' : '线上闲鱼'}
+                                </span>
+                           </div>
+
+                          <div className="flex justify-between items-center">
+                              <h2 className="text-2xl font-bold text-gray-900">{selectedOrder.customerName || '无名氏'}</h2>
+                              <div className="text-3xl font-bold text-brand-600">¥{selectedOrder.price}</div>
+                          </div>
+                          
+                          <div className="flex items-center text-gray-500 text-sm">
+                              <Calendar size={14} className="mr-1" />
+                              {new Date(selectedOrder.createdAt).toLocaleString('zh-CN')}
+                              <div className={`ml-3 px-2 py-0.5 rounded-full text-xs font-bold border ${selectedOrder.status === 'completed' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-orange-100 text-orange-700 border-orange-200'}`}>
+                                  {selectedOrder.status === 'completed' ? '已发货' : '待处理'}
+                              </div>
+                          </div>
+
+                          {selectedOrder.tags && selectedOrder.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-2">
+                                  {selectedOrder.tags.map(tag => (
+                                      <span key={tag} className="px-2 py-1 bg-brand-50 text-brand-700 text-xs font-bold rounded-lg border border-brand-100">
+                                          {tag}
+                                      </span>
+                                  ))}
+                              </div>
+                          )}
+
+                          <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                              <h4 className="text-xs font-bold text-gray-400 uppercase mb-2">备注内容</h4>
+                              <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">
+                                  {selectedOrder.note || '没有填写备注'}
+                              </p>
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="p-4 border-t border-gray-100 bg-gray-50 relative z-20">
+                      <button 
+                          onClick={() => {
+                              setSelectedOrder(null);
+                              if (onRefresh) onRefresh();
+                          }}
+                          className="w-full py-4 rounded-2xl font-bold text-lg bg-brand-600 text-white shadow-lg transition-transform active:scale-95"
+                      >
+                          关闭
+                      </button>
+                  </div>
+              </div>
+          </div>
       )}
 
     </div>

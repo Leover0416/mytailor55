@@ -100,7 +100,7 @@ function App() {
         </div>
       )}
       <main className="max-w-md mx-auto bg-[#f8fafc] min-h-screen relative">
-        {view === 'dashboard' && <Stats orders={orders} />}
+        {view === 'dashboard' && <Stats orders={orders} onRefresh={fetchOrders} />}
         {view === 'add' && <OrderForm onSuccess={handleAddSuccess} />}
         {view === 'list' && <OrderList orders={orders} onRefresh={fetchOrders} />}
         {view === 'settings' && <Settings onRefresh={fetchOrders} />}

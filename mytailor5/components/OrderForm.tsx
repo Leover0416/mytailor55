@@ -1,8 +1,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, Upload, Loader2, Save, UserCircle, Image as ImageIcon, X, Calendar, Tag, Clock } from 'lucide-react';
+import { Camera, Upload, Loader2, Save, UserCircle, Image as ImageIcon, X, Calendar, Tag, Clock, Mic, MicOff } from 'lucide-react';
 import { compressImage, saveOrder } from '../services/db';
 import { Order } from '../types';
+import { useSpeechInput } from '../hooks/useSpeechInput';
 
 interface Props {
   onSuccess: () => void;
@@ -23,6 +24,16 @@ export const OrderForm: React.FC<Props> = ({ onSuccess }) => {
   const [orderDate, setOrderDate] = useState('');
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const handleSpeechResult = (text: string) => {
+    setNote(prev => {
+      if (!prev) return text;
+      return `${prev}${prev.endsWith(' ') ? '' : ' '}${text}`;
+    });
+  };
+  const { supported: speechSupported, listening, startListening, stopListening } = useSpeechInput({
+    onResult: handleSpeechResult,
+    lang: 'zh-CN'
+  });
   
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -252,16 +263,36 @@ export const OrderForm: React.FC<Props> = ({ onSuccess }) => {
 
             {/* Note Input */}
             <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700 flex items-center">
-                    <Tag size={16} className="mr-2 text-brand-600"/>
-                    备注详情
-                </label>
+                <div className="flex items-center justify-between">
+                    <label className="text-sm font-bold text-gray-700 flex items-center">
+                        <Tag size={16} className="mr-2 text-brand-600"/>
+                        备注详情
+                    </label>
+                    <button
+                      type="button"
+                      onClick={listening ? stopListening : startListening}
+                      disabled={!speechSupported}
+                      className={`text-xs flex items-center gap-1 px-3 py-1.5 rounded-full border transition-colors ${
+                        listening
+                          ? 'bg-red-100 text-red-600 border-red-200'
+                          : 'text-brand-600 border-brand-200 hover:bg-brand-50'
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      {listening ? <MicOff size={14} /> : <Mic size={14} />}
+                      {listening ? '停止' : '语音输入'}
+                    </button>
+                </div>
                 <textarea
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
                     placeholder="补充更多细节..."
                     className="w-full p-4 bg-gray-50 border-0 rounded-2xl h-32 resize-none focus:ring-2 focus:ring-brand-500 transition-all text-gray-700 leading-relaxed"
                 />
+                {!speechSupported && (
+                  <p className="text-xs text-gray-400">
+                    当前浏览器暂不支持语音识别，可在 Chrome / Edge 等浏览器尝试。
+                  </p>
+                )}
             </div>
 
             {/* Price Input */}
