@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
-import { Download, Upload, Database, CheckCircle, AlertTriangle, FileSpreadsheet } from 'lucide-react';
-import { exportData, importData, exportToCSV } from '../services/db';
+import { Download, Upload, Database, CheckCircle, AlertTriangle, FileSpreadsheet, FileText } from 'lucide-react';
+import { exportData, importData, exportToCSV, getOrders } from '../services/db';
+import { generateOrdersPDF } from '../services/pdf';
 
 interface Props {
   onRefresh: () => void;
@@ -32,6 +33,25 @@ export const Settings: React.FC<Props> = ({ onRefresh }) => {
       setMessage({ type: 'success', text: 'Excel 表格已下载' });
     } catch (e) {
       setMessage({ type: 'error', text: '导出失败' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    setLoading(true);
+    try {
+      const orders = await getOrders();
+      if (!orders.length) {
+        setMessage({ type: 'error', text: '暂无订单可导出' });
+        return;
+      }
+      const doc = generateOrdersPDF({ orders });
+      doc.save(`小刘裁缝铺_订单汇总_${getDateStr()}.pdf`);
+      setMessage({ type: 'success', text: 'PDF 已生成并下载' });
+    } catch (e) {
+      console.error(e);
+      setMessage({ type: 'error', text: 'PDF 导出失败，请重试' });
     } finally {
       setLoading(false);
     }
@@ -102,6 +122,14 @@ export const Settings: React.FC<Props> = ({ onRefresh }) => {
             >
                 <FileSpreadsheet className="w-5 h-5 mr-2" />
                 导出 Excel 表格
+            </button>
+            <button
+              onClick={handleExportPDF}
+              disabled={loading}
+              className="w-full flex items-center justify-center py-3 mt-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-colors"
+            >
+              <FileText className="w-5 h-5 mr-2" />
+              导出 PDF 汇总
             </button>
         </div>
 

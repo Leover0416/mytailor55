@@ -388,7 +388,7 @@ export const OrderList: React.FC<Props> = ({ orders, onRefresh }) => {
                         <div className="bg-gray-100 flex flex-col space-y-1 pb-1">
                             {(selectedOrder.images && selectedOrder.images.length > 0 ? selectedOrder.images : [(selectedOrder as any).imageBase64]).map((img: string, idx: number) => (
                                 <div key={idx} className="relative w-full">
-                                    <ImageDisplay src={img} className="w-full h-auto object-cover" alt={`Detail ${idx+1}`} />
+                                    <ImageDisplay src={img} className="w-full h-auto object-cover" alt={`Detail ${idx+1}`} variant="full" />
                                     <div className="absolute top-4 left-4 bg-black/50 text-white px-2 py-1 rounded-lg text-xs backdrop-blur-md">
                                         {idx + 1} / {(selectedOrder.images || []).length || 1}
                                     </div>

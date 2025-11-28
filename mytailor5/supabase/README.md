@@ -29,7 +29,7 @@
 2. 点击 **New bucket**
 3. 创建存储桶：
    - 名称：`orders`
-   - 公开访问：**关闭**（Private）
+   - 公开访问：**开启**（Public），以便生成可缓存的图片 URL
 4. 点击 **Create bucket**
 
 ### 配置 Storage 策略

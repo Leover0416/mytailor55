@@ -1,43 +1,90 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getImageUrl } from '../services/db';
 
 interface Props {
   src: string;
   alt?: string;
   className?: string;
+  variant?: 'thumb' | 'full';
 }
 
-export const ImageDisplay: React.FC<Props> = ({ src, alt, className }) => {
+export const ImageDisplay: React.FC<Props> = ({ src, alt, className, variant = 'thumb' }) => {
   const [imageUrl, setImageUrl] = useState<string>(src);
   const [loading, setLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  const [shouldLoad, setShouldLoad] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            setShouldLoad(true);
+            observer.disconnect();
+          }
+        });
+      },
+      { rootMargin: '120px' }
+    );
+
+    if (wrapperRef.current) {
+      observer.observe(wrapperRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!shouldLoad) return;
+    let cancelled = false;
+
     const loadUrl = async () => {
+      setLoading(true);
+      setHasError(false);
       try {
-        // 如果是 base64 或完整 URL，直接使用
         if (src.startsWith('data:image') || src.startsWith('http://') || src.startsWith('https://')) {
-          setImageUrl(src);
-          setLoading(false);
-          return;
+          if (!cancelled) {
+            setImageUrl(src);
+          }
+        } else {
+          const url = await getImageUrl(
+            src,
+            variant === 'thumb' ? { width: 600, quality: 75 } : undefined
+          );
+          if (!cancelled) {
+            setImageUrl(url);
+          }
         }
-        
-        // 如果是 Storage 路径，获取签名 URL
-        const url = await getImageUrl(src);
-        setImageUrl(url);
       } catch (error) {
         console.error('加载图片失败:', error);
-        setImageUrl(src); // 失败时使用原路径
+        if (!cancelled) {
+          setImageUrl(src);
+          setHasError(true);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     loadUrl();
-  }, [src]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [src, shouldLoad, variant]);
+
+  const handleRetry = () => {
+    setHasError(false);
+    setShouldLoad(false);
+    setTimeout(() => setShouldLoad(true), 50);
+  };
 
   if (loading) {
     return (
-      <div className={`bg-gray-200 animate-pulse ${className}`}>
+      <div ref={wrapperRef} className={`bg-gray-200 animate-pulse ${className}`}>
         <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
           加载中...
         </div>
@@ -46,16 +93,26 @@ export const ImageDisplay: React.FC<Props> = ({ src, alt, className }) => {
   }
 
   return (
-    <img 
-      src={imageUrl} 
-      alt={alt || 'Image'} 
-      className={className}
-      onError={(e) => {
-        console.error('图片加载错误:', imageUrl);
-        // 如果加载失败，显示占位符
-        (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2U1ZTdlYiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5Y2EzYWYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7lm77niYfliqDovb3lpLHotKU8L3RleHQ+PC9zdmc+';
-      }}
-    />
+    <div ref={wrapperRef} className="relative w-full h-full">
+      <img 
+        src={imageUrl} 
+        alt={alt || 'Image'} 
+        className={className}
+        loading="lazy"
+        onError={() => setHasError(true)}
+      />
+      {hasError && (
+        <div className="absolute inset-0 bg-black/40 text-white text-xs flex flex-col items-center justify-center gap-1">
+          <span>图片加载失败</span>
+          <button
+            onClick={handleRetry}
+            className="px-2 py-1 bg-white/80 text-red-600 rounded-full"
+          >
+            重试
+          </button>
+        </div>
+      )}
+    </div>
   );
 };
 

@@ -4,7 +4,6 @@ import { supabase } from './supabase';
 const STORAGE_BUCKET = 'orders';
 const STORAGE_ROOT_FOLDER = 'public';
 const PUBLIC_USER_ID = '00000000-0000-0000-0000-000000000001';
-const SIGNED_URL_TTL = 60 * 60; // 1 小时
 
 // ============ 图片处理函数 ============
 
@@ -17,15 +16,31 @@ export const compressImage = (file: File): Promise<string> => {
       img.src = event.target?.result as string;
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 1200; 
-        const scaleSize = MAX_WIDTH / img.width;
-        canvas.width = MAX_WIDTH;
-        canvas.height = img.height * scaleSize;
+        const sizeMB = file.size / (1024 * 1024);
+        let quality = 0.85;
+        let maxWidth = 1600;
+
+        if (sizeMB > 6) {
+          quality = 0.65;
+          maxWidth = 1200;
+        } else if (sizeMB > 3) {
+          quality = 0.75;
+          maxWidth = 1400;
+        }
+
+        if (img.width <= maxWidth) {
+          canvas.width = img.width;
+          canvas.height = img.height;
+        } else {
+          const scaleSize = maxWidth / img.width;
+          canvas.width = maxWidth;
+          canvas.height = img.height * scaleSize;
+        }
 
         const ctx = canvas.getContext('2d');
         if (ctx) {
            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-           resolve(canvas.toDataURL('image/jpeg', 0.8));
+           resolve(canvas.toDataURL('image/jpeg', quality));
         } else {
            reject('Canvas context failed');
         }
@@ -92,10 +107,12 @@ const uploadImages = async (images: string[], orderId: string): Promise<string[]
   return Promise.all(uploadPromises);
 };
 
-/**
- * 获取可访问的图片 URL（支持 Private 存储桶）
- */
-export const getImageUrl = async (imagePath: string): Promise<string> => {
+interface ImageUrlOptions {
+  width?: number;
+  quality?: number;
+}
+
+export const getImageUrl = async (imagePath: string, options?: ImageUrlOptions): Promise<string> => {
   if (!imagePath || typeof imagePath !== 'string') {
     console.warn('无效的图片路径:', imagePath);
     return '';
@@ -106,42 +123,30 @@ export const getImageUrl = async (imagePath: string): Promise<string> => {
       return imagePath;
     }
     
-    // 兼容旧数据：以 orders/ 开头的路径带有存储桶前缀
+    let normalized = imagePath;
     if (imagePath.startsWith('orders/')) {
-      const normalized = imagePath.replace(/^orders\//, '');
-      if (!normalized) {
-        console.error('无效的文件路径:', imagePath);
-        return imagePath;
-      }
-
-      const { data, error } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .createSignedUrl(normalized, SIGNED_URL_TTL);
-
-      if (error || !data?.signedUrl) {
-        console.error('生成签名 URL 失败:', error);
-        return imagePath;
-      }
-
-      return data.signedUrl;
+      normalized = imagePath.replace(/^orders\//, '');
     }
 
-    // 新数据：直接存储 bucket 内的路径
-    if (imagePath.startsWith(`${STORAGE_ROOT_FOLDER}/`)) {
-      const { data, error } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .createSignedUrl(imagePath, SIGNED_URL_TTL);
+    const transformOptions = options?.width
+      ? {
+          transform: {
+            width: options.width,
+            quality: options.quality ?? 80,
+          },
+        }
+      : undefined;
 
-      if (error || !data?.signedUrl) {
-        console.error('生成签名 URL 失败:', error);
-        return imagePath;
-      }
+    const { data, error } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .getPublicUrl(normalized, transformOptions);
 
-      return data.signedUrl;
+    if (error || !data?.publicUrl) {
+      console.error('获取公开图片 URL 失败:', error);
+      return imagePath;
     }
-    
-    console.warn('未知的图片路径格式:', imagePath);
-    return imagePath;
+
+    return data.publicUrl;
   } catch (error) {
     console.error('获取图片 URL 失败:', error);
     console.error('图片路径:', imagePath);

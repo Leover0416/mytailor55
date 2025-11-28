@@ -47,6 +47,7 @@ npm run build
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
 5. 部署
+6. 部署后，访问站点即可在浏览器中“添加到主屏幕”，PWA 资源（manifest、service worker）会自动随构建输出
 
 ### 选项 2：Netlify
 
@@ -74,7 +75,8 @@ npm run build
 
 1. **安全性**：本项目默认关闭 orders 表 RLS，实现免登录访问。请保管好部署地址和 anon key，必要时在 Supabase 设置中限制允许访问的域名/IP。
 2. **图片存储**：图片存储在 Supabase Storage 的 `orders` bucket，并通过签名 URL 访问。请务必按照 `supabase/storage-policies.sql` 配置策略。
-3. **数据备份**：建议定期导出数据（使用设置页面的导出功能）
+3. **PWA 更新**：若修改了 `sw.js`，发布后建议在浏览器中刷新两次以获得最新缓存。
+4. **数据备份**：建议定期导出数据（使用设置页面的导出功能）
 
 ## 更新部署
 
